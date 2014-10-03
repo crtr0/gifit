@@ -1,5 +1,8 @@
 var http = require('http')
+  , os = require('os')
   , fs = require('fs')
+  , glob = require('glob')
+  , util = require('util')
   , exec = require('child_process').exec
   , request = require('request')
   , static = require('node-static')
@@ -8,11 +11,25 @@ var http = require('http')
   , uuid = require('node-uuid')
   , child;
 
+console.log('Starting Node server with incoming phone number: ' + 
+  process.env.TWILIO_CALLER_ID);
+
 // The directory where our animated gifs will live
 var dir = new static.Server('./public');
 
 // Twilio REST client
 var client = new twilio.RestClient();
+
+// Delete any temp files that may have been created
+var cleanUp = function(id) {
+  console.log('Cleaning up temp files');
+  glob(os.tmpdir() + "/" + id + "*", function (err, files) {
+    files.forEach(function(file) {
+      fs.unlink(file, function (err) {});
+    });
+  });
+}
+
 
 // Spin up our HTTP server
 http.createServer(function(req, res) {
@@ -21,10 +38,13 @@ http.createServer(function(req, res) {
     var hash = url.parse(this.url, true);
     // This is the phone number of the person who sent the video
     var phone = hash.query['From'];
+    // This is the host the machine serving this Node process 
+    var host = this.headers['host']; 
     
-    // This is our Twilio webhook, process the incoming video
+    // If the requested path is /sms, process the incoming video
     if (hash.pathname === '/sms') {
       var mediaUrl = hash.query['MediaUrl0'];
+      console.log('Processing video: ', mediaUrl);
       
       // create a unique UUID for all of our video/gif processing
       var id = uuid.v1();
@@ -42,12 +62,13 @@ http.createServer(function(req, res) {
       res.end(twiml.toString());
       
       // Save the remote movie file to the /tmp fs
-      x = request(mediaUrl).pipe(fs.createWriteStream("scratch/"+ id));
+      x = request(mediaUrl).pipe(fs.createWriteStream(
+        util.format('%s/%s', os.tmpdir(), id)));
 
       x.on('finish', function() {
         // Once it's saved, it's time to spin-up a child process to
         // handle decoding the video and building the gif
-        child = exec('avconv -i scratch/' + id + ' -r 12 -f image2 scratch/' + id + '-%03d.jpeg && convert -delay 8 -loop 0 scratch/' + id + '*.jpeg public/' + id + '.gif && convert public/'+id+'.gif -layers optimizeplus public/'+id+'.gif && rm scratch/'+id+'*',
+        child = exec(util.format('avconv -i %s/%s -r 8 -vframes 48 -f image2 %s/%s-%03d.jpeg && convert -delay 12 -loop 0 %s/%s*.jpeg %s/public/%s.gif && convert %s/public/%s.gif -layers optimizeplus %s/public/%s.gif', os.tmpdir(), id, os.tmpdir(), id, os.tmpdir(), id, __dirname, id, __dirname, id, __dirname, id),
           function (error, stdout, stderr) {
             if (error !== null) {
               console.log('exec error: ' + error);
@@ -61,10 +82,19 @@ http.createServer(function(req, res) {
                 });
             }
             else {
+              // an assumption made here is that the protocol is HTTP
+              var gifUrl = 'http://' + host + '/' + id + '.gif';
+              console.log('Success! Gif URL: ', gifUrl);
               client.sendMessage({
                 to: phone, from: process.env.TWILIO_CALLER_ID, 
-                mediaUrl: 'http://107.170.229.114:3000/'+id+'.gif'}, function(err, responseData) { });
+                body: 'Powered by Twilio MMS',
+                mediaUrl: gifUrl}, function(err, responseData) { 
+                  if (err) {
+                    console.log('Error sending MMS: ', err.toString());
+                  }
+                });
             }
+            cleanUp(id);
         });
       });
     }
@@ -74,4 +104,4 @@ http.createServer(function(req, res) {
   }).resume();
 }).listen(process.env.PORT || 3000);
 
-console.log('Listening on port 3000');
+console.log('Listening on port ', process.env.PORT || 3000);
