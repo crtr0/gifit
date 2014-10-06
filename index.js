@@ -41,31 +41,35 @@ http.createServer(function(req, res) {
     // This is the host the machine serving this Node process 
     var host = this.headers['host']; 
     
-    // If the requested path is /sms, process the incoming video
-    if (hash.pathname === '/sms') {
+    // If the requested path is /message, process the incoming video
+    if (hash.pathname === '/message') {
       var mediaUrl = hash.query['MediaUrl0'];
-      console.log('Processing video: ', mediaUrl);
+      var mediaContentType = hash.query['MediaContentType0'];
+      console.log('Processing video: ', mediaUrl, mediaContentType);
       
-      // create a unique UUID for all of our video/gif processing
-      var id = uuid.v1();
       
       res.writeHead(200, {'Content-type': 'text/xml'});
       var twiml = new twilio.TwimlResponse();
 
       // if media URL looks like a valid video, send ok back to the user
-      if (true) { 
+      if (mediaContentType.indexOf('video') >= 0) { 
         twiml.message('Video queued for processing, hang tight!');
+        res.end(twiml.toString());
       }
       else {
         twiml.message('This is not a video format that we recognize. Try again?');
+        res.end(twiml.toString());
+        return;
       }
-      res.end(twiml.toString());
       
+      // create a unique UUID for all of our video/gif processing
+      var id = uuid.v1();
+
       // Save the remote movie file to the /tmp fs
-      x = request(mediaUrl).pipe(fs.createWriteStream(
+      download = request(mediaUrl).pipe(fs.createWriteStream(
         util.format('%s/%s', os.tmpdir(), id)));
 
-      x.on('finish', function() {
+      download.on('finish', function() {
         // Once it's saved, it's time to spin-up a child process to
         // handle decoding the video and building the gif
         child = exec(util.format('avconv -i %s/%s -r 8 -vframes 48 -f image2 %s/%s-%03d.jpeg && convert -delay 12 -loop 0 %s/%s*.jpeg %s/public/%s.gif && convert %s/public/%s.gif -layers optimizeplus %s/public/%s.gif', os.tmpdir(), id, os.tmpdir(), id, os.tmpdir(), id, __dirname, id, __dirname, id, __dirname, id),
