@@ -33,6 +33,23 @@ var cleanUp = function(id) {
 };
 
 /**
+ * Send an MMS with an animated GIF attached
+ */
+var sendGif = function(host, id, phone) {
+  // an assumption made here is that the protocol is HTTP
+  var gifUrl = 'http://' + host + '/' + id + '.gif';
+  console.log('Success! Gif URL: ', gifUrl);
+  client.sendMessage({
+    to: phone, from: process.env.TWILIO_CALLER_ID, 
+    body: 'Powered by Twilio MMS',
+    mediaUrl: gifUrl}, function(err, responseData) { 
+      if (err) {
+        console.log('Error sending MMS: ', err.toString());
+      }
+    });
+};
+
+/**
  * Download the video, convert it into a GIF, send an MMS
  */
 var processVideo = function(mediaUrl, host, phone) {
@@ -60,17 +77,7 @@ var processVideo = function(mediaUrl, host, phone) {
             });
         }
         else {
-          // an assumption made here is that the protocol is HTTP
-          var gifUrl = 'http://' + host + '/' + id + '.gif';
-          console.log('Success! Gif URL: ', gifUrl);
-          client.sendMessage({
-            to: phone, from: process.env.TWILIO_CALLER_ID, 
-            body: 'Powered by Twilio MMS',
-            mediaUrl: gifUrl}, function(err, responseData) { 
-              if (err) {
-                console.log('Error sending MMS: ', err.toString());
-              }
-            });
+          sendGif(host, id, phone);
         }
         cleanUp(id);
     });
@@ -106,7 +113,7 @@ var handleMessage = function(req, res) {
     twiml.message('This is not a video format that we recognize. Try again?');
     res.end(twiml.toString());
   }
-}
+};
 
 // Spin up our HTTP server
 http.createServer(function(req, res) {
