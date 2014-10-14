@@ -11,9 +11,6 @@ var http = require('http')
   , uuid = require('node-uuid')
   , child;
 
-console.log('Starting Node server with incoming phone number: ' + 
-  process.env.TWILIO_CALLER_ID);
-
 // The directory where our animated gifs will live
 var dir = new static.Server('./public');
 
@@ -35,12 +32,12 @@ var cleanUp = function(id) {
 /**
  * Send an MMS with an animated GIF attached
  */
-var sendGif = function(host, id, phone) {
+var sendGif = function(host, id, from, to) {
   // an assumption made here is that the protocol is HTTP
   var gifUrl = 'http://' + host + '/' + id + '.gif';
   console.log('Success! Gif URL: ', gifUrl);
   client.sendMessage({
-    to: phone, from: process.env.TWILIO_CALLER_ID, 
+    to: from, from: to, 
     body: 'Powered by Twilio MMS',
     mediaUrl: gifUrl}, function(err, responseData) { 
       if (err) {
@@ -52,7 +49,7 @@ var sendGif = function(host, id, phone) {
 /**
  * Download the video, convert it into a GIF, send an MMS
  */
-var processVideo = function(mediaUrl, host, phone) {
+var processVideo = function(mediaUrl, host, from, to) {
   // create a unique UUID for all of our video/gif processing
   var id = uuid.v1();
 
@@ -68,7 +65,7 @@ var processVideo = function(mediaUrl, host, phone) {
       if (error !== null) {
          console.log('exec error: ' + error);
          client.sendMessage({
-           to: phone, from: process.env.TWILIO_CALLER_ID, 
+           to: from, from: to, 
            body: 'Very sorry but an error occurred processing your video. Try a different video?'}, 
            function(err, responseData) { 
              if (err) {
@@ -77,7 +74,7 @@ var processVideo = function(mediaUrl, host, phone) {
            });
        }
        else {
-         sendGif(host, id, phone);
+         sendGif(host, id, from, to);
        }
        cleanUp(id);
     });
@@ -91,7 +88,9 @@ var handleMessage = function(req, res) {
   // Parse the request URL
   var hash = url.parse(req.url, true);
   // This is the phone number of the person who sent the video
-  var phone = hash.query['From'];
+  var from = hash.query['From'];
+  // This is the phone number the video was sent to
+  var to = hash.query['To'];
   // This is the URL of the file being sent
   var mediaUrl = hash.query['MediaUrl0'];
   // This is the content type of that file
@@ -107,7 +106,7 @@ var handleMessage = function(req, res) {
   if (mediaContentType.indexOf('video') >= 0) { 
     twiml.message('Video queued for processing, hang tight!');
     res.end(twiml.toString());
-    processVideo(mediaUrl, host, phone);
+    processVideo(mediaUrl, host, from, to);
   }
   else {
     twiml.message('This is not a video format that we recognize. Try again?');
