@@ -10,7 +10,7 @@ If you have any questions or run into an issue, please feel free to file an issu
 
 You will need the following to get started:
 
-* [Twilio MMS-emables phone number](https://www.twilio.com/mms)
+* [Twilio MMS-enabled phone number](https://www.twilio.com/mms)
 * Ubuntu VPS
 * Node.js
 
