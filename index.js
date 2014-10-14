@@ -44,7 +44,7 @@ var sendGif = function(host, id, phone) {
     body: 'Powered by Twilio MMS',
     mediaUrl: gifUrl}, function(err, responseData) { 
       if (err) {
-        console.log('Error sending MMS: ', err.toString());
+        console.log('Error sending MMS: ', JSON.stringify(err));
       }
     });
 };
@@ -63,23 +63,23 @@ var processVideo = function(mediaUrl, host, phone) {
   download.on('finish', function() {
     // Once it's saved, it's time to spin-up a child process to
     // handle decoding the video and building the gif
-    child = exec(util.format('avconv -i %s/%s -r 8 -vframes 48 -f image2 %s/%s-%03d.jpeg && convert -delay 12 -loop 0 %s/%s*.jpeg %s/public/%s.gif && convert %s/public/%s.gif -layers optimizeplus %s/public/%s.gif', os.tmpdir(), id, os.tmpdir(), id, os.tmpdir(), id, __dirname, id, __dirname, id, __dirname, id),
-      function (error, stdout, stderr) {
-        if (error !== null) {
-          console.log('exec error: ' + error);
-          client.sendMessage({
-            to: phone, from: process.env.TWILIO_CALLER_ID, 
-            body: 'Very sorry but an error occurred processing your video. Try a different video?'}, 
-            function(err, responseData) { 
-              if (err) {
-                console.log('Error sending text: ' + err);
-              }
-            });
-        }
-        else {
-          sendGif(host, id, phone);
-        }
-        cleanUp(id);
+    var cmd = util.format('avconv -i %s/%s -r 8 -vframes 48 -f image2 %s/%s-%03d.jpeg && convert -delay 12 -loop 0 %s/%s*.jpeg %s/public/%s.gif && convert %s/public/%s.gif -layers optimizeplus %s/public/%s.gif', os.tmpdir(), id, os.tmpdir(), id, os.tmpdir(), id, __dirname, id, __dirname, id, __dirname, id);
+    child = exec(cmd, function (error, stdout, stderr) {
+      if (error !== null) {
+         console.log('exec error: ' + error);
+         client.sendMessage({
+           to: phone, from: process.env.TWILIO_CALLER_ID, 
+           body: 'Very sorry but an error occurred processing your video. Try a different video?'}, 
+           function(err, responseData) { 
+             if (err) {
+               console.log('Error sending text: ' + JSON.stringify(err));
+             }
+           });
+       }
+       else {
+         sendGif(host, id, phone);
+       }
+       cleanUp(id);
     });
   });
 };
